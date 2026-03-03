@@ -78,6 +78,19 @@ class CodeEditor {
   }
 
   /**
+   * Extract body content from full HTML code
+   * @param {string} code - The full HTML code
+   * @returns {string} - The body content or original code if no body tag found
+   */
+  extractBodyContent(code) {
+    const bodyMatch = code.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    if (bodyMatch && bodyMatch[1]) {
+      return bodyMatch[1].trim();
+    }
+    return code;
+  }
+
+  /**
    * Update the main editors canvas content with the
    * content from modals editor.
    * @todo show validation results in UI
@@ -90,15 +103,26 @@ class CodeEditor {
     }
 
     try {
+      // For HTML pages (non-MJML mode), extract body content to prevent
+      // head elements from being duplicated into body on each save
+      const isMjml = ContentService.isMjmlMode(this.editor);
+      let contentToSet = code.trim();
+      if (!isMjml) {
+        contentToSet = this.extractBodyContent(code);
+      }
+
       // delete canvas and set new content
       this.editor.DomComponents.getWrapper().set('content', '');
-      this.editor.setComponents(code.trim())
+      this.editor.setComponents(contentToSet)
 
       // Reinitialize the content after parsing MJML.
       // This can be removed once the issue with self-closing tags is resolved in grapesjs-mjml.
       // See: https://github.com/GrapesJS/mjml/issues/149
-      const parsedContent = MjmlService.getEditorMjmlContent(this.editor);
-      this.editor.setComponents(parsedContent);
+      // Skip this step for non-MJML (HTML landing pages) to avoid duplicating content
+      if (isMjml) {
+        const parsedContent = MjmlService.getEditorMjmlContent(this.editor);
+        this.editor.setComponents(parsedContent);
+      }
 
       this.editor.Modal.close();
     } catch (e) {
